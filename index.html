@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>予定表・カレンダー読みとり</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: 横向きは「資料(左)・問題(右)」の2列、縦向きは「資料→問題」の1列 */
+:root{
+  --bg:#EAF1F6; --panel:#FFFFFF; --ink:#1C2D3C; --sub:#556676; --line:#C3D2DD; --empty:#F3F6F9;
+  --accent:#1F6EA6; --accent-soft:#DCEAF5; --ok:#277A45; --ok-soft:#E0F2E6;
+  --ng:#B05A16; --ng-soft:#FBEADB; --hl:#FFE27A; --hl-line:#D49A00;
+  --hol:#FBE3E0; --holink:#B23A2E; --satink:#1F5FA8;
+  --font:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Hiragino Sans","Meiryo",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:18px;line-height:1.9;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+input{-webkit-user-select:text;user-select:text;font-family:inherit}
+button{font-family:inherit;touch-action:manipulation;cursor:pointer;color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+rt{font-size:.5em;font-weight:400;letter-spacing:0}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:16px 40px}
+h1,h2,h3,p{margin:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+
+/* ボタン */
+.btn{min-height:56px;min-width:56px;padding:8px 26px;border-radius:12px;border:2px solid var(--accent);background:var(--accent);color:#fff;font-size:21px;font-weight:700}
+.btn.sub{background:var(--panel);color:var(--accent)}
+.btn.small{min-height:48px;font-size:18px;padding:4px 18px}
+.btn.big{min-height:72px;font-size:26px;padding:8px 48px}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.55;cursor:default}
+
+/* スタート画面 */
+.hero{margin-bottom:18px;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
+.hero h1{font-size:34px;line-height:1.7}
+.hero p{color:var(--sub);font-size:18px}
+.presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.preset{display:grid;align-content:start;gap:8px;min-height:180px;padding:20px;border-radius:16px;border:2px solid var(--line);background:var(--panel);text-align:left}
+.preset:active{transform:translateY(1px)}
+.preset .pname{font-size:30px;font-weight:700;line-height:1.5}
+.preset .dots{display:flex;gap:6px}
+.preset .dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--accent);display:block}
+.preset .dots i.on{background:var(--accent)}
+.preset .pdesc{font-size:16px;color:var(--sub);line-height:1.9}
+.preset .pgo{justify-self:start;margin-top:4px;font-size:18px;font-weight:700;color:#fff;background:var(--accent);border-radius:10px;padding:4px 18px}
+.pnote{margin-top:14px;font-size:15px;color:var(--sub)}
+.setbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+.setbar h1{font-size:28px;line-height:1.7}
+.settings{display:grid;gap:18px}
+.setgroup{display:grid;gap:16px}
+.setgroup+.setgroup{border-top:1.5px dashed var(--line);padding-top:16px}
+.setgroup h2{font-size:19px;color:var(--accent);font-weight:700}
+.setrow{display:grid;grid-template-columns:160px minmax(0,1fr);gap:12px;align-items:center}
+.setlab{font-weight:700;font-size:19px;line-height:1.7}
+.seg{display:flex;flex-wrap:wrap;gap:10px}
+.seg button{min-height:56px;min-width:56px;padding:6px 18px;border-radius:12px;border:2px solid var(--line);background:var(--panel);font-size:18px;text-align:left;line-height:1.7}
+.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);font-weight:700;box-shadow:inset 0 0 0 1px var(--accent)}
+.seg.levels button{display:flex;align-items:center;gap:10px}
+.seg.levels b{display:grid;place-items:center;min-width:38px;height:38px;padding-inline:6px;border-radius:19px;background:var(--accent);color:#fff;font-size:18px;flex:none}
+.seg.info button{display:grid;gap:0;max-width:300px}
+.seg.info button span{font-size:14px;font-weight:400;color:var(--sub);line-height:1.8}
+.hint{font-size:15px;color:var(--sub);line-height:1.8}
+.startbar{display:flex;justify-content:center;margin-top:22px}
+
+/* 数字入力 */
+.num{display:inline-flex;align-items:center;gap:8px}
+.num input{width:96px;height:60px;font-size:28px;text-align:center;border:2px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font-variant-numeric:tabular-nums}
+.steps{display:flex;flex-direction:column;gap:4px}
+.step{width:56px;height:44px;border:2px solid var(--accent);background:var(--accent-soft);border-radius:8px;font-size:20px;color:var(--accent);font-weight:700;padding:0}
+.unit{font-size:22px;font-weight:700}
+.numgroup{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-block:6px 14px}
+
+/* プレイ画面 */
+.topbar{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.prog{flex:1;min-width:0}
+.prog span{font-weight:700;font-size:18px}
+.pbar{height:10px;border-radius:5px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.pbar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+.playgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+@media (min-width:900px) and (min-aspect-ratio:5/4){
+  .playgrid{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+  #qp{position:sticky;top:12px}
+}
+.mtitle{font-size:22px;margin-bottom:10px;line-height:1.8}
+.tw{overflow-x:auto}
+.note{font-size:15px;color:var(--sub);margin-top:8px}
+
+/* 1日の予定表 */
+.sch{border-collapse:collapse;width:100%;font-size:17px;line-height:1.75}
+.sch.easy{font-size:21px}
+.sch th,.sch td{border:1.5px solid var(--line);padding:6px 10px;vertical-align:middle;text-align:left}
+.sch.easy th,.sch.easy td{padding:10px 14px}
+.sch th{background:var(--accent-soft);font-weight:700;white-space:nowrap}
+.sch td.tm{font-variant-numeric:tabular-nums}
+.nw{white-space:nowrap}
+.same{color:var(--sub)}
+
+/* カレンダー */
+.cal{border-collapse:collapse;width:100%;table-layout:fixed;min-width:560px}
+.cal th{border:1.5px solid var(--line);background:var(--accent-soft);font-size:16px;padding:2px}
+.cal th.sun{color:var(--holink)} .cal th.sat{color:var(--satink)}
+.cal td{border:1.5px solid var(--line);height:86px;vertical-align:top;padding:3px 4px;font-size:13px;line-height:1.55}
+.cal.easy td{font-size:15px;height:92px}
+.cal td.empty{background:var(--empty)}
+.cal td.hol{background:var(--hol)}
+.dtop{display:flex;align-items:center;justify-content:space-between;gap:2px}
+.dn{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
+.dn.r{color:var(--holink)} .dn.b{color:var(--satink)}
+.tag{font-size:11px;border:1px solid var(--holink);color:var(--holink);border-radius:4px;padding:0 3px;line-height:1.6;background:var(--panel)}
+.tag.go{border-color:var(--satink);color:var(--satink)}
+.lab{font-size:11px;color:var(--holink)}
+.ev{font-weight:700}
+.ev .mk{margin-right:1px}
+.legend{margin-top:10px;display:grid;gap:2px;font-size:16px;padding:8px 12px;border:1.5px solid var(--line);border-radius:10px}
+.legend .sw{display:inline-block;width:22px;height:16px;background:var(--hol);border:1px solid var(--holink);vertical-align:middle;margin-right:4px}
+
+/* 強調表示 */
+.hl,tr.hl td{background:var(--hl)!important;box-shadow:inset 0 0 0 3px var(--hl-line)}
+
+/* 問題 */
+.qmeta{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.chip{font-size:15px;font-weight:700;border:2px solid var(--accent);color:var(--accent);border-radius:20px;padding:0 12px}
+.qtext{font-size:22px;font-weight:700;line-height:2;margin-bottom:14px}
+.hintrow{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:14px}
+.hintmsg{font-size:17px;font-weight:700;color:var(--hl-line)}
+.opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.opts.one{grid-template-columns:minmax(0,1fr)}
+.opt{display:flex;align-items:center;gap:12px;text-align:left;min-height:64px;padding:8px 14px;border:2px solid var(--line);background:var(--panel);border-radius:12px;font-size:19px;line-height:1.8}
+.opt .k{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;background:var(--accent-soft);font-weight:700}
+.opt .t{flex:1;min-width:0}
+.opt .mk{flex:none;font-weight:700;font-size:15px}
+.opt.ok{border-color:var(--ok);background:var(--ok-soft)}
+.opt.ok .mk{color:var(--ok)}
+.opt.ng{border-color:var(--ng);background:var(--ng-soft)}
+.opt.ng .mk{color:var(--ng)}
+.opt:disabled{cursor:default;color:var(--ink);opacity:1}
+.opts.clocks .opt{flex-direction:column;justify-content:center;padding:10px}
+.clock{width:min(128px,100%);height:auto;display:block}
+.clock .face{fill:var(--panel);stroke:var(--ink);stroke-width:2.5}
+.clock .num{fill:var(--ink);font-size:10px;font-family:var(--font)}
+.clock .tick{stroke:var(--ink)}
+.clock .hh{stroke:var(--ink);stroke-width:5;stroke-linecap:round}
+.clock .mh{stroke:var(--accent);stroke-width:3;stroke-linecap:round}
+.clock .ctr{fill:var(--ink)}
+.go{margin-top:4px}
+
+.fb{margin-top:16px;padding:14px 16px;border-radius:12px;border:2px solid var(--line);display:grid;gap:10px}
+.fb.ok{border-color:var(--ok);background:var(--ok-soft)}
+.fb.ng{border-color:var(--ng);background:var(--ng-soft)}
+.fbt{font-size:24px;font-weight:700}
+.fb.ok .fbt{color:var(--ok)} .fb.ng .fbt{color:var(--ng)}
+.exp{background:var(--panel);border-radius:10px;padding:10px 12px;font-size:18px}
+.explab{display:inline-block;font-size:14px;font-weight:700;color:var(--accent);border:1.5px solid var(--accent);border-radius:6px;padding:0 6px;margin-right:6px}
+.fbnext{display:flex;justify-content:flex-end}
+
+/* 結果 */
+.score{text-align:center;padding-block:10px 18px}
+.score .big{font-size:56px;font-weight:700;color:var(--accent);line-height:1.3;font-variant-numeric:tabular-nums}
+.score p{font-size:22px;font-weight:700}
+.rset{text-align:center;font-size:15px;color:var(--sub);margin-bottom:12px}
+.rlist{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.rlist li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel)}
+.rk{font-weight:700;font-size:16px;border-radius:8px;padding:0 8px;white-space:nowrap}
+.rk.ok{color:var(--ok);background:var(--ok-soft)} .rk.ng{color:var(--ng);background:var(--ng-soft)}
+.rchip{display:inline-block;font-size:13px;font-weight:700;color:var(--hl-line);border:1.5px solid var(--hl-line);border-radius:6px;padding:0 6px;margin-left:6px}
+.rq{font-size:17px;line-height:1.9}
+.ra{font-size:15px;color:var(--sub)}
+.rbtns{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:22px}
+
+@media (max-width:640px){
+  .setrow{grid-template-columns:minmax(0,1fr)}
+  .hero h1{font-size:28px}
+  .presets{grid-template-columns:minmax(0,1fr)}
+  .preset{min-height:0}
+  .opts{grid-template-columns:minmax(0,1fr)}
+  .opts.clocks{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- スタート画面 -->
+<section id="start">
+  <div class="hero">
+    <div>
+      <h1>[予定表|よていひょう]・カレンダー [読|よ]みとり</h1>
+      <p>[予定表|よていひょう]やカレンダーを[読|よ]んで、[問題|もんだい]にこたえるよ。</p>
+    </div>
+    <button type="button" id="openSet" class="btn sub small">[設定|せってい]</button>
+  </div>
+  <div class="presets">
+    <button type="button" class="preset" data-p="easy">
+      <span class="pname">かんたん</span>
+      <span class="dots"><i class="on"></i><i></i><i></i></span>
+      <span class="pdesc">[資料|しりょう]がすくないよ。2つからえらぶよ。ヒントボタンがあるよ。</span>
+      <span class="pgo">はじめる</span>
+    </button>
+    <button type="button" class="preset" data-p="normal">
+      <span class="pname">ふつう</span>
+      <span class="dots"><i class="on"></i><i class="on"></i><i></i></span>
+      <span class="pdesc">「〜から〜まで」の[予定表|よていひょう]だよ。3つからえらぶよ。だんだんむずかしくなるよ。</span>
+      <span class="pgo">はじめる</span>
+    </button>
+    <button type="button" class="preset" data-p="challenge">
+      <span class="pname">チャレンジ</span>
+      <span class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></span>
+      <span class="pdesc">[資料|しりょう]がおおいよ。4つからえらんだり、[数字|すうじ]を[入|い]れたりするよ。</span>
+      <span class="pgo">はじめる</span>
+    </button>
+  </div>
+  <p class="pnote" id="pnote"></p>
+</section>
+
+<!-- 設定画面 -->
+<section id="settings" hidden>
+  <div class="setbar">
+    <h1>[設定|せってい]</h1>
+    <button type="button" id="closeSet" class="btn sub small">もどる</button>
+  </div>
+  <div class="panel settings">
+    <div class="setgroup">
+      <h2>[問題|もんだい]の[中身|なかみ]（[先生|せんせい]がえらんでね）</h2>
+      <div class="setrow">
+        <div class="setlab">[資料|しりょう]</div>
+        <div class="seg" data-key="mat">
+          <button type="button" data-v="day">1[日|にち]の[予定表|よていひょう]</button>
+          <button type="button" data-v="cal">[行事|ぎょうじ]カレンダー</button>
+          <button type="button" data-v="mix">りょうほう</button>
+        </div>
+      </div>
+      <div class="setrow">
+        <div class="setlab">[資料|しりょう]の[量|りょう]</div>
+        <div class="seg levels info" data-key="info">
+          <button type="button" data-v="1"><b>すくない</b><span>[予定表|よていひょう]：5[行|ぎょう]、[始|はじ]まる[時刻|じこく]だけ、[場所|ばしょ]なし<br>カレンダー：●▲なし、[行事|ぎょうじ]が[少|すく]ない</span></button>
+          <button type="button" data-v="2"><b>ふつう</b><span>[予定表|よていひょう]：6[行|ぎょう]、「〜から〜まで」と[場所|ばしょ]<br>カレンダー：●▲あり、[土|ど][曜|よう]日の[行事|ぎょうじ]と[代休|だいきゅう]</span></button>
+          <button type="button" data-v="3"><b>おおい</b><span>[予定表|よていひょう]：7〜9[行|ぎょう]、[雨|あめ]のときの[列|れつ]、あき[時間|じかん]、5分きざみ<br>カレンダー：クラブ[活動|かつどう]など[行事|ぎょうじ]が[多|おお]い</span></button>
+        </div>
+      </div>
+      <div class="setrow">
+        <div class="setlab">レベル</div>
+        <div class="seg levels" data-key="level">
+          <button type="button" data-v="1"><b>1</b><span>[書|か]いてあることをさがす</span></button>
+          <button type="button" data-v="2"><b>2</b><span>[時間|じかん]の[計算|けいさん]・[時計|とけい]</span></button>
+          <button type="button" data-v="3"><b>3</b><span>[日数|にっすう]や[時間|じかん]を[数|かぞ]える</span></button>
+          <button type="button" data-v="4"><b>4</b><span>[正|ただ]しい[文|ぶん]をえらぶ</span></button>
+        </div>
+      </div>
+      <div class="setrow">
+        <div class="setlab">[出|だ]し[方|かた]</div>
+        <div>
+          <div class="seg" data-key="mode">
+            <button type="button" data-v="ramp">だんだんむずかしく</button>
+            <button type="button" data-v="fixed">このレベルだけ</button>
+          </div>
+          <p class="hint">だんだんむずかしく：1つの[資料|しりょう]で3〜4[問|もん]。[後|あと]の[問題|もんだい]ほどむずかしくなるよ。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="setgroup">
+      <h2>こたえやすさ</h2>
+      <div class="setrow">
+        <div class="setlab">[選択肢|せんたくし]の[数|かず]</div>
+        <div class="seg" data-key="choices">
+          <button type="button" data-v="2">2つ</button>
+          <button type="button" data-v="3">3つ</button>
+          <button type="button" data-v="4">4つ</button>
+        </div>
+      </div>
+      <div class="setrow">
+        <div class="setlab">[数字|すうじ]のこたえ</div>
+        <div>
+          <div class="seg" data-key="ansMode">
+            <button type="button" data-v="input">[数字|すうじ]を[入|い]れる</button>
+            <button type="button" data-v="choice">[選択肢|せんたくし]からえらぶ</button>
+          </div>
+          <p class="hint">「[何|なん]分？」「[何|なん]日？」などの[問題|もんだい]を、えらぶ[問題|もんだい]にできるよ。</p>
+        </div>
+      </div>
+      <div class="setrow">
+        <div class="setlab">ヒント</div>
+        <div>
+          <div class="seg" data-key="hint">
+            <button type="button" data-v="off">なし</button>
+            <button type="button" data-v="on">ヒントボタンあり</button>
+          </div>
+          <p class="hint">ボタンをおすと、[資料|しりょう]の[見|み]るところが[黄色|きいろ]になるよ。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="setgroup">
+      <div class="setrow">
+        <div class="setlab">[問題|もんだい]の[数|かず]<br><span class="hint">かんたん・ふつう・チャレンジにも[使|つか]うよ</span></div>
+        <div class="num">
+          <input id="cnt" type="text" inputmode="numeric" pattern="[0-9]*" data-min="3" data-max="30" value="4" aria-label="問題の数">
+          <div class="steps">
+            <button type="button" class="step" data-t="cnt" data-d="1" aria-label="ふやす">△</button>
+            <button type="button" class="step" data-t="cnt" data-d="-1" aria-label="へらす">▽</button>
+          </div>
+          <span class="unit">[問|もん]</span>
+        </div>
+      </div>
+      <div class="setrow">
+        <div class="setlab">[効果音|こうかおん]</div>
+        <div class="seg" data-key="sound">
+          <button type="button" data-v="on">オン</button>
+          <button type="button" data-v="off">オフ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="startbar"><button type="button" id="startBtn" class="btn big">この[設定|せってい]ではじめる</button></div>
+</section>
+
+<!-- 問題画面 -->
+<section id="play" hidden>
+  <div class="topbar">
+    <div class="prog"><span id="progTxt"></span><div class="pbar"><i id="pbarFill"></i></div></div>
+    <button type="button" id="quitBtn" class="btn sub small">おわる</button>
+  </div>
+  <div class="playgrid">
+    <section id="mat" class="panel"></section>
+    <section id="qp" class="panel"></section>
+  </div>
+</section>
+
+<!-- 結果画面 -->
+<section id="result" hidden>
+  <div class="panel">
+    <div class="score"><div class="big" id="scoreNum"></div><p id="scoreMsg"></p></div>
+    <p class="rset" id="rset"></p>
+    <ol class="rlist" id="rlist"></ol>
+    <div class="rbtns">
+      <button type="button" id="againBtn" class="btn">もういちど する</button>
+      <button type="button" id="homeBtn" class="btn sub">はじめの[画面|がめん]へ</button>
+    </div>
+  </div>
+</section>
+
+</div>
+<script>
+'use strict';
+/* ========== 小さな道具 ========== */
+const R=s=>String(s).replace(/\[([^|\]]+)\|([^\]]+)\]/g,'<ruby>$1<rt>$2</rt></ruby>');
+const P=s=>String(s).replace(/\[([^|\]]+)\|([^\]]+)\]/g,'$1');
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const T=m=>{const h=Math.floor(m/60),mm=m%60;return h+'時'+(mm?mm+'分':'');};
+const D=m=>{const h=Math.floor(m/60),mm=m%60;if(h&&mm)return h+'時[間|かん]'+mm+'分';if(h)return h+'時[間|かん]';return mm+'分';};
+const KANA=['ア','イ','ウ','エ'];
+const WDR=['[日|にち]','[月|げつ]','[火|か]','[水|すい]','[木|もく]','[金|きん]','[土|ど]'];
+const WDT=w=>WDR[w]+'[曜|よう]日';
+
+function explainDiff(s,e){
+  const d=e-s, h1=Math.ceil(s/60)*60, h2=Math.floor(e/60)*60;
+  if(h1>h2) return `${T(s)}から${T(e)}までは、${e%60}−${s%60}＝${d}で、${D(d)}だよ。`;
+  const parts=[]; let a=0,b=0;
+  if(h1>s){a=h1-s;parts.push(`${T(s)}から${T(h1)}までが${D(a)}`);}
+  if(h2>h1) parts.push(`${T(h1)}から${T(h2)}までが${D(h2-h1)}`);
+  if(e>h2){b=e-h2;parts.push(`${T(h2)}から${T(e)}までが${D(b)}`);}
+  if(parts.length===1) return `${T(s)}から${T(e)}までは${D(d)}だよ。`;
+  let t=parts.join('、')+`。あわせて${D(d)}だよ。`;
+  if(a&&b&&a+b>=60) t+=`（${a}分と${b}分で${a+b}分。60分は1時[間|かん]だから、${D(a+b)}になるよ。）`;
+  return t;
+}
+function explainAdd(s,N){
+  const c=s+N, h1=Math.ceil(s/60)*60;
+  if(s%60!==0 && c>=h1){
+    const a=h1-s;
+    if(N===a) return `${T(s)}から${a}分たつと、ちょうど${T(c)}だよ。`;
+    return `${T(s)}から${T(h1)}までが${a}分。のこりの${N-a}分をたして、${T(c)}だよ。`;
+  }
+  return `${s%60}＋${N}＝${s%60+N}で、${T(c)}だよ。`;
+}
+function clockHint(t){
+  const h=(Math.floor(t/60)%12)||12, mm=t%60;
+  return `[時計|とけい]では、[長|なが]いはりが「${mm===0?12:mm/5}」、[短|みじか]いはりが`+(mm===0?`「${h}」をさすよ。`:`「${h}」と「${h%12+1}」のあいだになるよ。`);
+}
+const n720=x=>((x%720)+720)%720;
+function clockSVG(t){
+  t=n720(t); const h=Math.floor(t/60)%12, m=t%60;
+  const ma=m*6*Math.PI/180, ha=(h*30+m*.5)*Math.PI/180;
+  let s='<svg class="clock" viewBox="0 0 100 100" aria-hidden="true"><circle class="face" cx="50" cy="50" r="46"/>';
+  for(let i=0;i<60;i++){const a=i*6*Math.PI/180,r1=i%5?43:40;s+=`<line class="tick" stroke-width="${i%5?0.8:1.8}" x1="${50+r1*Math.sin(a)}" y1="${50-r1*Math.cos(a)}" x2="${50+45*Math.sin(a)}" y2="${50-45*Math.cos(a)}"/>`;}
+  for(let i=1;i<=12;i++){const a=i*30*Math.PI/180;s+=`<text class="num" x="${50+33*Math.sin(a)}" y="${50-33*Math.cos(a)+3.6}" text-anchor="middle">${i}</text>`;}
+  s+=`<line class="hh" x1="50" y1="50" x2="${50+22*Math.sin(ha)}" y2="${50-22*Math.cos(ha)}"/>`;
+  s+=`<line class="mh" x1="50" y1="50" x2="${50+36*Math.sin(ma)}" y2="${50-36*Math.cos(ma)}"/>`;
+  return s+'<circle class="ctr" cx="50" cy="50" r="3"/></svg>';
+}
+function clockOpts(c,extras){
+  const seen=new Set([n720(c)]), w=[];
+  const h=(Math.floor(c/60)%12)||12, mm=c%60;
+  const swap=(mm%5===0&&mm>0)?((mm/5)%12)*60+(h%12)*5:null;
+  for(const x of [...extras,swap,c+60,c-60,c+10,c-10,c+30,c-30,c+5,c+15]){
+    if(x==null)continue; const k=n720(x); if(seen.has(k))continue; seen.add(k); w.push(x); if(w.length===3)break;
+  }
+  return shuffle([{t:c,ok:true},...w.map(t=>({t,ok:false}))]);
+}
+function choiceOpts(correct,wrongs,fallback){
+  const seen=new Set([P(correct)]), w=[];
+  for(const x of [...wrongs,...shuffle(fallback||[])]){
+    if(x==null)continue; const k=P(x); if(seen.has(k))continue; seen.add(k); w.push(x); if(w.length===3)break;
+  }
+  if(w.length<3) return null;
+  return shuffle([{h:correct,ok:true},...w.map(h=>({h,ok:false}))]);
+}
+function truthQ(makers,lv,text){
+  for(let tries=0;tries<25;tries++){
+    const order=shuffle(makers.map((f,i)=>i));
+    let tr=null,ti=-1;
+    for(const i of order){tr=makers[i](true);if(tr){ti=i;break;}}
+    if(!tr) return null;
+    const seen=new Set([P(tr.txt)]), fs=[];
+    for(const i of [...shuffle(order.filter(i=>i!==ti)),...shuffle(order),...shuffle(order),...shuffle(order)]){
+      if(fs.length===3)break;
+      const f=makers[i](false); if(!f||seen.has(P(f.txt)))continue;
+      seen.add(P(f.txt)); fs.push(f);
+    }
+    if(fs.length<3) continue;
+    const opts=shuffle([{h:tr.txt,ok:true,why:tr.why,hl:tr.hl},...fs.map(f=>({h:f.txt,ok:false,why:f.why,hl:f.hl}))]);
+    return {lv,type:'choice',long:true,text,opts,ans:tr.txt,exp:tr.why,hl:tr.hl};
+  }
+  return null;
+}
+
+/* ========== 1日の予定表：題材 ========== */
+/* [活動, 場所, 雨のとき(null=同じ / 'X'=中止), 最短分, 最長分, 省いてよいか] */
+const DAY_THEMES=[
+{t:'[校外|こうがい][学習|がくしゅう]の[予定|よてい]',st:[510,520,540],rows:[
+ ['[学校|がっこう]に[集合|しゅうごう]','[運動場|うんどうじょう]','[体育館|たいいくかん]',10,15,0],
+ ['バスで[移動|いどう]','バス',null,30,50,0],
+ ['[動物園|どうぶつえん]の[見学|けんがく]','[動物園|どうぶつえん]','[科学館|かがくかん]',60,90,0],
+ ['[昼食|ちゅうしょく]','[芝生|しばふ][広場|ひろば]','[休憩室|きゅうけいしつ]',40,50,0],
+ ['グループ[活動|かつどう]','[動物園|どうぶつえん]','[科学館|かがくかん]',40,60,1],
+ ['[集合|しゅうごう][写真|しゃしん]','[正門|せいもん]の[前|まえ]','X',10,15,1],
+ ['おみやげ[選|えら]び','[売店|ばいてん]',null,15,25,1],
+ ['バスで[学校|がっこう]へ','バス',null,30,50,0],
+ ['[解散|かいさん]','[運動場|うんどうじょう]','[体育館|たいいくかん]',10,10,0]]},
+{t:'[運動会|うんどうかい]の[予定|よてい]',st:[520,530,540],rows:[
+ ['[開会式|かいかいしき]','[運動場|うんどうじょう]','[体育館|たいいくかん]',15,20,0],
+ ['[準備|じゅんび][体操|たいそう]','[運動場|うんどうじょう]','[体育館|たいいくかん]',10,15,0],
+ ['[徒競走|ときょうそう]','[運動場|うんどうじょう]','[体育館|たいいくかん]',30,40,0],
+ ['[玉入|たまい]れ','[運動場|うんどうじょう]','[体育館|たいいくかん]',20,30,1],
+ ['ダンス','[運動場|うんどうじょう]','[体育館|たいいくかん]',20,30,0],
+ ['[昼食|ちゅうしょく]','[教室|きょうしつ]',null,45,60,0],
+ ['[綱引|つなひ]き','[運動場|うんどうじょう]','X',20,30,1],
+ ['リレー','[運動場|うんどうじょう]','X',30,40,0],
+ ['[閉会式|へいかいしき]','[運動場|うんどうじょう]','[体育館|たいいくかん]',15,20,0],
+ ['[片付|かたづ]け','[運動場|うんどうじょう]','[体育館|たいいくかん]',20,30,1]]},
+{t:'[宿泊|しゅくはく][学習|がくしゅう] 1日[目|め]の[予定|よてい]',st:[510,525],rows:[
+ ['[出発式|しゅっぱつしき]','[運動場|うんどうじょう]','[体育館|たいいくかん]',15,20,0],
+ ['バスで[移動|いどう]','バス',null,60,90,0],
+ ['[入所式|にゅうしょしき]','[広場|ひろば]','ホール',15,20,0],
+ ['[昼食|ちゅうしょく]','[食堂|しょくどう]',null,40,50,0],
+ ['ハイキング','[森|もり]の[道|みち]','[体育室|たいいくしつ]',90,120,0],
+ ['[自由|じゆう][時間|じかん]','[部屋|へや]',null,30,45,1],
+ ['[夕食|ゆうしょく]','[食堂|しょくどう]',null,45,60,0],
+ ['キャンプファイヤー','[広場|ひろば]','ホール',45,60,1],
+ ['[入浴|にゅうよく]','[大浴場|だいよくじょう]',null,40,60,1],
+ ['ふりかえり','[部屋|へや]',null,20,30,0]]},
+{t:'[職場|しょくば][見学|けんがく]の[予定|よてい]',st:[540,550],rows:[
+ ['[学校|がっこう]を[出発|しゅっぱつ]','[玄関|げんかん]',null,10,10,1],
+ ['[電車|でんしゃ]で[移動|いどう]','[電車|でんしゃ]',null,30,40,0],
+ ['あいさつと[説明|せつめい]','[会議室|かいぎしつ]',null,20,30,0],
+ ['[工場|こうじょう]の[見学|けんがく]','[工場|こうじょう]',null,40,60,0],
+ ['[花壇|かだん]の[手入|てい]れ','[中庭|なかにわ]','[作業室|さぎょうしつ]',30,40,0],
+ ['[昼食|ちゅうしょく]','[食堂|しょくどう]',null,40,50,0],
+ ['[仕事|しごと]の[体験|たいけん]','[作業室|さぎょうしつ]',null,40,60,0],
+ ['[質問|しつもん]タイム','[会議室|かいぎしつ]',null,20,30,1],
+ ['[電車|でんしゃ]で[学校|がっこう]へ','[電車|でんしゃ]',null,30,40,0]]},
+{t:'[修学|しゅうがく][旅行|りょこう] 1日[目|め]の[予定|よてい]',st:[470,480],rows:[
+ ['[出発式|しゅっぱつしき]','[駅前|えきまえ][広場|ひろば]','[駅|えき]の[中|なか]',10,15,0],
+ ['[新幹線|しんかんせん]で[移動|いどう]','[新幹線|しんかんせん]',null,90,150,0],
+ ['お[寺|てら]の[見学|けんがく]','お[寺|てら]',null,40,60,1],
+ ['[昼食|ちゅうしょく]','レストラン',null,50,60,0],
+ ['[班別|はんべつ][行動|こうどう]','[町|まち]の[中|なか]','[博物館|はくぶつかん]',90,150,0],
+ ['[水族館|すいぞくかん]の[見学|けんがく]','[水族館|すいぞくかん]',null,60,90,1],
+ ['ホテルに[到着|とうちゃく]','ホテルのロビー',null,20,30,0],
+ ['[夕食|ゆうしょく]','[大広間|おおひろま]',null,50,60,0],
+ ['[入浴|にゅうよく]','[部屋|へや]',null,40,60,1],
+ ['[班長|はんちょう][会議|かいぎ]','[会議室|かいぎしつ]',null,20,30,1]]},
+{t:'[文化祭|ぶんかさい]の[予定|よてい]',st:[530,540],rows:[
+ ['[開会式|かいかいしき]','[体育館|たいいくかん]',null,15,20,0],
+ ['[劇|げき]の[発表|はっぴょう]','[体育館|たいいくかん]',null,40,60,0],
+ ['[作品|さくひん]の[見学|けんがく]','[各|かく][教室|きょうしつ]',null,30,45,1],
+ ['[昼食|ちゅうしょく]','[教室|きょうしつ]',null,45,50,0],
+ ['[模擬店|もぎてん]','[中庭|なかにわ]','[食堂|しょくどう]',40,60,0],
+ ['[合唱|がっしょう]の[発表|はっぴょう]','[体育館|たいいくかん]',null,30,40,0],
+ ['[写真|しゃしん][撮影|さつえい]','[正門|せいもん]の[前|まえ]','X',10,15,1],
+ ['[閉会式|へいかいしき]','[体育館|たいいくかん]',null,15,20,0],
+ ['[片付|かたづ]け','[各|かく][教室|きょうしつ]',null,20,30,1]]},
+{t:'[社会|しゃかい][見学|けんがく]の[予定|よてい]',st:[520,530],rows:[
+ ['[集合|しゅうごう]','[運動場|うんどうじょう]','[体育館|たいいくかん]',10,15,0],
+ ['バスで[移動|いどう]','バス',null,20,40,0],
+ ['[消防署|しょうぼうしょ]の[見学|けんがく]','[消防署|しょうぼうしょ]',null,40,60,0],
+ ['[放水|ほうすい][体験|たいけん]','[訓練場|くんれんじょう]','X',20,30,1],
+ ['[昼食|ちゅうしょく]','[市民|しみん][公園|こうえん]','[市民|しみん]センター',40,50,0],
+ ['[浄水場|じょうすいじょう]の[見学|けんがく]','[浄水場|じょうすいじょう]',null,40,60,0],
+ ['バスで[学校|がっこう]へ','バス',null,20,40,0],
+ ['ふりかえり','[教室|きょうしつ]',null,20,30,1]]},
+{t:'[遠足|えんそく]の[予定|よてい]',st:[540,550],rows:[
+ ['[集合|しゅうごう]','[運動場|うんどうじょう]','[体育館|たいいくかん]',10,15,0],
+ ['[歩|ある]いて[移動|いどう]','[川|かわ]ぞいの[道|みち]','バス',40,60,0],
+ ['[広場|ひろば]で[遊|あそ]ぶ','[中央|ちゅうおう][公園|こうえん]','[公園|こうえん]の[体育館|たいいくかん]',40,60,0],
+ ['お[弁当|べんとう]','[芝生|しばふ][広場|ひろば]','[公園|こうえん]の[休憩所|きゅうけいじょ]',40,50,0],
+ ['[自然|しぜん][観察|かんさつ]','[森|もり]の[小道|こみち]','X',30,45,1],
+ ['[歩|ある]いて[学校|がっこう]へ','[川|かわ]ぞいの[道|みち]','バス',40,60,0],
+ ['[解散|かいさん]','[運動場|うんどうじょう]',null,10,10,0]]}
+];
+const GEN_PLACES=['[図書室|としょしつ]','[音楽室|おんがくしつ]','[中庭|なかにわ]','[玄関|げんかん]','[食堂|しょくどう]','[体育館|たいいくかん]','[教室|きょうしつ]','[会議室|かいぎしつ]'];
+const isPl=x=>!!x&&x!=='X';
+
+/* 資料の量：1すくない 2ふつう 3おおい */
+const DINFO={
+  1:{n:[5,5],tm:'start',place:false,rain:false,step:30,gap:false},
+  2:{n:[6,6],tm:'range',place:true,rain:false,step:10,gap:false},
+  3:{n:[7,9],tm:'range',place:true,rain:true,step:5,gap:true}
+};
+function genDay(info){
+  const I=DINFO[info]||DINFO[2], th=pick(DAY_THEMES), rows0=th.rows, L=rows0.length;
+  const target=Math.min(L,rnd(I.n[0],I.n[1]));
+  const inc=rows0.map(r=>!r[5]);
+  const cnt=()=>inc.filter(Boolean).length;
+  let g=0;
+  while(cnt()>target&&g++<100){
+    let o=rows0.map((r,i)=>i).filter(i=>inc[i]&&rows0[i][5]);
+    if(!o.length)o=rows0.map((r,i)=>i).filter(i=>inc[i]&&i!==0&&i!==L-1);
+    if(!o.length)break; inc[pick(o)]=false;
+  }
+  while(cnt()<target&&g++<200){const o=rows0.map((r,i)=>i).filter(i=>!inc[i]);if(!o.length)break;inc[pick(o)]=true;}
+  const st=I.step;
+  let t=Math.round(pick(th.st)/st)*st; const rows=[];
+  rows0.forEach((r,i)=>{
+    if(!inc[i])return;
+    const d=Math.max(st,rnd(Math.ceil(r[3]/st),Math.ceil(r[4]/st))*st);
+    rows.push({a:r[0],p:r[1],r:r[2],s:t,e:t+d,d});
+    t+=d; if(I.gap&&Math.random()<0.3)t+=pick([5,10,15]);
+  });
+  return {kind:'day',title:th.t,rows,tm:I.tm,place:I.place,rain:I.rain};
+}
+function renderDay(m){
+  const st=m.tm==='start';
+  let h=`<h2 class="mtitle">${R(m.title)}</h2><div class="tw"><table class="sch${st?' easy':''}"><thead><tr><th>${R('[時刻|じこく]')}</th><th>${R('[活動|かつどう]')}</th>`;
+  if(m.place)h+=`<th>${R('[場所|ばしょ]')}</th>`;
+  if(m.rain)h+=`<th>${R('[雨|あめ]のとき')}</th>`;
+  h+='</tr></thead><tbody>';
+  m.rows.forEach((r,i)=>{
+    const tm=st?`<span class="nw">${T(r.s)}から</span>`:`<span class="nw">${T(r.s)}</span>〜<span class="nw">${T(r.e)}</span>`;
+    h+=`<tr id="r${i}"><td class="tm" id="r${i}c0">${tm}</td><td id="r${i}c1">${R(r.a)}</td>`;
+    if(m.place)h+=`<td id="r${i}c2">${R(r.p)}</td>`;
+    if(m.rain){const rain=r.r===null?'<span class="same">—</span>':r.r==='X'?R('[中止|ちゅうし]'):R(r.r);h+=`<td id="r${i}c3">${rain}</td>`;}
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  if(m.rain)h+=`<p class="note">${R('「—」は、[雨|あめ]のときも[同|おな]じ[場所|ばしょ]でするよ。')}</p>`;
+  return h;
+}
+
+/* ---- 予定表の問題 ---- */
+const isSt=m=>m.tm==='start';
+const near=(rs,i,k)=>rs.filter((x,j)=>j!==i&&Math.abs(j-i)<=k);
+const C2=(i,...c)=>c.map(k=>'r'+i+'c'+k);
+function dStartAct(m,lv){
+  const rs=m.rows,i=rnd(0,rs.length-1),r=rs[i];
+  const opts=choiceOpts(r.a,shuffle(near(rs,i,2).map(x=>x.a)),rs.map(x=>x.a)); if(!opts)return null;
+  return {lv,type:'choice',text:`${T(r.s)}から[始|はじ]まる[活動|かつどう]は[何|なに]かな？`,opts,ans:r.a,
+    exp:isSt(m)?`${T(r.s)}の[行|ぎょう]を[見|み]ると、「${r.a}」だよ。`:`${T(r.s)}から${T(r.e)}までの[行|ぎょう]を[見|み]ると、「${r.a}」だよ。`,hl:['r'+i]};
+}
+function dNext(m,lv){
+  const rs=m.rows; if(rs.length<3)return null;
+  const i=rnd(0,rs.length-2),r=rs[i],b=rs[i+1],w=[];
+  if(i>0)w.push(rs[i-1].a); if(i+2<rs.length)w.push(rs[i+2].a);
+  const opts=choiceOpts(b.a,w,rs.filter((x,j)=>j!==i).map(x=>x.a)); if(!opts)return null;
+  return {lv,type:'choice',text:`「${r.a}」の[次|つぎ]にする[活動|かつどう]は[何|なに]かな？`,opts,ans:b.a,
+    exp:`「${r.a}」のすぐ[下|した]の[行|ぎょう]を[見|み]ると、「${b.a}」だよ。`,hl:[...C2(i,1),'r'+(i+1)]};
+}
+function dPlace(m,lv){
+  if(!m.place)return null;
+  const rs=m.rows,i=rnd(0,rs.length-1),r=rs[i];
+  const nb=[];near(rs,i,2).forEach(x=>{nb.push(x.p);if(m.rain&&isPl(x.r))nb.push(x.r);});
+  const opts=choiceOpts(r.p,[...(m.rain&&isPl(r.r)?[r.r]:[]),...shuffle(nb)],GEN_PLACES); if(!opts)return null;
+  return {lv,type:'choice',text:`「${r.a}」をする[場所|ばしょ]はどこかな？`,opts,ans:r.p,
+    exp:`「${r.a}」の[行|ぎょう]の「[場所|ばしょ]」を[見|み]ると、「${r.p}」だよ。`+(m.rain&&isPl(r.r)?`「[雨|あめ]のとき」の「${r.r}」とまちがえないようにね。`:''),hl:C2(i,1,2)};
+}
+function dRain(m,lv){
+  if(!m.rain)return null;
+  const rs=m.rows,c=rs.map((r,i)=>i).filter(i=>isPl(rs[i].r)); if(!c.length)return null;
+  const i=pick(c),r=rs[i];
+  const nb=[];near(rs,i,2).forEach(x=>{nb.push(x.p);if(isPl(x.r))nb.push(x.r);});
+  const opts=choiceOpts(r.r,[r.p,...shuffle(nb)],GEN_PLACES); if(!opts)return null;
+  return {lv,type:'choice',text:`[雨|あめ]のとき、「${r.a}」はどこでするかな？`,opts,ans:r.r,
+    exp:`「[雨|あめ]のとき」の[列|れつ]を[見|み]ると、「${r.r}」だよ。[雨|あめ]でなければ「${r.p}」だね。`,hl:C2(i,1,3)};
+}
+function dWhen(m,lv){
+  const rs=m.rows,i=rnd(0,rs.length-1),r=rs[i],st=isSt(m);
+  const w=st?[]:[T(r.e)];if(i>0)w.push(T(rs[i-1].s));if(i<rs.length-1){w.push(T(rs[i+1].s));if(!st)w.push(T(rs[i+1].e));}
+  const opts=choiceOpts(T(r.s),w,[T(r.s+10),T(r.s-10),T(r.s+30),T(r.s-30)]); if(!opts)return null;
+  return {lv,type:'choice',text:`「${r.a}」は[何|なん]時に[始|はじ]まるかな？`,opts,ans:T(r.s),
+    exp:st?`「${r.a}」の[行|ぎょう]の[時刻|じこく]を[見|み]ると、${T(r.s)}からだよ。`:`「${r.a}」の[時刻|じこく]は「${T(r.s)}〜${T(r.e)}」。「〜」の[前|まえ]が[始|はじ]まる[時刻|じこく]で、${T(r.s)}だよ。`,hl:C2(i,0,1)};
+}
+function dDur(m,lv){
+  const rs=m.rows,st=isSt(m),i=rnd(0,rs.length-(st?2:1)),r=rs[i];
+  if(st){
+    const b=rs[i+1],v=b.s-r.s;
+    return {lv,type:v<60?'num':'hm',unit:'分',val:v,ans:D(v),
+      text:`「${r.a}」が[始|はじ]まってから、[次|つぎ]の「${b.a}」が[始|はじ]まるまで、`+(v<60?'[何|なん]分あるかな？':'[何|なん]時[間|かん][何|なん]分あるかな？'),
+      exp:`「${r.a}」は${T(r.s)}、「${b.a}」は${T(b.s)}に[始|はじ]まるよ。`+explainDiff(r.s,b.s),hl:[...C2(i,0,1),...C2(i+1,0,1)]};
+  }
+  const d=r.d;
+  return {lv,type:d<60?'num':'hm',unit:'分',val:d,ans:D(d),
+    text:d<60?`「${r.a}」は[何|なん]分[間|かん]あるかな？`:`「${r.a}」は[何|なん]時[間|かん][何|なん]分あるかな？`,
+    exp:`「${r.a}」は${T(r.s)}から${T(r.e)}まで。`+explainDiff(r.s,r.e),hl:C2(i,0,1)};
+}
+function dAfter(m,lv){
+  const rs=m.rows,i=rnd(0,rs.length-1),r=rs[i];
+  const Ns=[15,20,25,30,35,40,45,50];
+  const cross=Ns.filter(N=>r.s%60!==0&&Math.floor((r.s+N)/60)>Math.floor(r.s/60)&&(r.s+N)%60!==0);
+  const N=(cross.length&&Math.random()<0.7)?pick(cross):pick(Ns);
+  const c=r.s+N, crossed=Math.floor(c/60)>Math.floor(r.s/60);
+  return {lv,type:'clock',opts:clockOpts(c,[crossed?c-60:null,r.s]),ans:T(c),
+    text:`「${r.a}」が[始|はじ]まってから${N}分[後|ご]は、[何|なん]時[何|なん]分かな？[時計|とけい]からえらんでね。`,
+    exp:`「${r.a}」は${T(r.s)}に[始|はじ]まるよ。`+explainAdd(r.s,N)+clockHint(c),hl:C2(i,0,1)};
+}
+function dEnd(m,lv){
+  if(isSt(m))return null;
+  const rs=m.rows,i=rnd(0,rs.length-1),r=rs[i];
+  return {lv,type:'clock',opts:clockOpts(r.e,[r.s,i<rs.length-1?rs[i+1].e:null]),ans:T(r.e),
+    text:`「${r.a}」が[終|お]わるのは[何|なん]時[何|なん]分かな？[時計|とけい]からえらんでね。`,
+    exp:`「${r.a}」の[時刻|じこく]は「${T(r.s)}〜${T(r.e)}」。「〜」の[後|あと]が[終|お]わる[時刻|じこく]で、${T(r.e)}だよ。`+clockHint(r.e),hl:C2(i,0,1)};
+}
+function dDuring(m,lv){
+  const rs=m.rows,st=isSt(m);
+  const endOf=i=>st?rs[i+1].s:rs[i].e;
+  const c=rs.map((r,i)=>i).filter(i=>(!st||i<rs.length-1)&&endOf(i)-rs[i].s>=20); if(!c.length)return null;
+  const i=pick(c),r=rs[i],e=endOf(i),u=(r.s%10===0&&e%10===0&&e-r.s>=20)?10:5,t=r.s+u*rnd(1,(e-r.s)/u-1);
+  const opts=choiceOpts(r.a,shuffle(near(rs,i,1).map(x=>x.a)).concat(shuffle(near(rs,i,3).map(x=>x.a))),rs.map(x=>x.a)); if(!opts)return null;
+  return {lv,type:'choice',text:`${T(t)}にしている[活動|かつどう]は[何|なに]かな？`,opts,ans:r.a,
+    exp:st?`${T(t)}は、「${r.a}」が[始|はじ]まる${T(r.s)}と、[次|つぎ]の「${rs[i+1].a}」が[始|はじ]まる${T(e)}のあいだだよ。だから「${r.a}」をしているよ。`
+          :`${T(t)}は「${T(r.s)}〜${T(r.e)}」のあいだに[入|はい]っているので、「${r.a}」だよ。`,
+    hl:st?['r'+i,...C2(i+1,0)]:['r'+i]};
+}
+function dGap(m,lv){
+  const rs=m.rows,st=isSt(m),pairs=[];
+  for(let i=0;i<rs.length;i++)for(const j of (st?[i+2,i+3]:[i+1,i+2])){
+    if(j>=rs.length)continue; const g=st?rs[j].s-rs[i].s:rs[j].s-rs[i].e;
+    if(g>0&&g<=(st?180:120))pairs.push([i,j,g]);
+  }
+  if(!pairs.length)return null;
+  const [i,j,g]=pick(pairs),a=rs[i],b=rs[j];
+  const tail=g<60?'[何|なん]分あるかな？':'[何|なん]時[間|かん][何|なん]分あるかな？';
+  if(st) return {lv,type:g<60?'num':'hm',unit:'分',val:g,ans:D(g),
+    text:`「${a.a}」が[始|はじ]まってから「${b.a}」が[始|はじ]まるまで、`+tail,
+    exp:`「${a.a}」は${T(a.s)}、「${b.a}」は${T(b.s)}に[始|はじ]まるよ。`+explainDiff(a.s,b.s),hl:[...C2(i,0,1),...C2(j,0,1)]};
+  return {lv,type:g<60?'num':'hm',unit:'分',val:g,ans:D(g),
+    text:`「${a.a}」が[終|お]わってから「${b.a}」が[始|はじ]まるまで、`+tail,
+    exp:`「${a.a}」が[終|お]わるのは${T(a.e)}、「${b.a}」が[始|はじ]まるのは${T(b.s)}。`+explainDiff(a.e,b.s),hl:[...C2(i,0,1),...C2(j,0,1)]};
+}
+function dTotal(m,lv){
+  const rs=m.rows,L=rs.length-1,st=isSt(m),s=rs[0].s,e=st?rs[L].s:rs[L].e,v=e-s;
+  return {lv,type:v<60?'num':'hm',unit:'分',val:v,ans:D(v),
+    text:st?`[最初|さいしょ]の[活動|かつどう]が[始|はじ]まってから、[最後|さいご]の[活動|かつどう]が[始|はじ]まるまで、[何|なん]時[間|かん][何|なん]分かな？`
+           :`[最初|さいしょ]の[活動|かつどう]が[始|はじ]まってから、[最後|さいご]の[活動|かつどう]が[終|お]わるまで、[何|なん]時[間|かん][何|なん]分かな？`,
+    exp:`[最初|さいしょ]の「${rs[0].a}」は${T(s)}に[始|はじ]まり、[最後|さいご]の「${rs[L].a}」は${T(e)}に${st?'[始|はじ]まる':'[終|お]わる'}よ。`+explainDiff(s,e),
+    hl:[...C2(0,0,1),...C2(L,0,1)]};
+}
+function dCountRain(m,lv){
+  if(!m.rain)return null;
+  const rs=m.rows,X=rs.map((r,i)=>i).filter(i=>rs[i].r==='X'),C=rs.map((r,i)=>i).filter(i=>isPl(rs[i].r));
+  const k=[];if(X.length)k.push('X');if(C.length)k.push('C'); if(!k.length)return null;
+  const kind=pick(k),ids=kind==='X'?X:C,n=ids.length;
+  const names=ids.map(i=>`「${rs[i].a}」`).join('、');
+  return {lv,type:'num',unit:'つ',val:n,ans:n+'つ',
+    text:kind==='X'?`[雨|あめ]のとき、[中止|ちゅうし]になる[活動|かつどう]はいくつあるかな？`:`[雨|あめ]のとき、[場所|ばしょ]が[変|か]わる[活動|かつどう]はいくつあるかな？（[中止|ちゅうし]は[入|い]れないよ）`,
+    exp:`「[雨|あめ]のとき」の[列|れつ]を[上|うえ]から[順|じゅん]に[見|み]ていくと、`+(kind==='X'?`「[中止|ちゅうし]」は`:`[場所|ばしょ]が[書|か]いてあるのは`)+`${names}の${n}つだよ。`+(kind==='C'?`「—」は[同|おな]じ[場所|ばしょ]なので[数|かぞ]えないよ。`:''),
+    hl:ids.flatMap(i=>C2(i,1,3))};
+}
+function dTruth(m,lv){
+  const rs=m.rows,L=rs.length,ri=()=>rnd(0,L-1),st=isSt(m);
+  const mk=[
+    ok=>{const i=ri(),r=rs[i],hl=C2(i,0,1);
+      if(st){const why=`「${r.a}」は${T(r.s)}に[始|はじ]まるよ。`;
+        if(ok)return {txt:`「${r.a}」は${T(r.s)}から[始|はじ]まる。`,why,hl};
+        const a=near(rs,i,1).map(x=>x.s); return {txt:`「${r.a}」は${T(pick(a))}から[始|はじ]まる。`,why,hl};}
+      const why=`「${r.a}」は、${T(r.s)}から${T(r.e)}までだよ。`;
+      if(ok)return {txt:`「${r.a}」は${T(r.s)}から${T(r.e)}まで。`,why,hl};
+      const f=i<L-1?[r.s,rs[i+1].e]:[rs[i-1].s,r.e];
+      return {txt:`「${r.a}」は${T(f[0])}から${T(f[1])}まで。`,why,hl};},
+    ok=>{if(L<3)return null;const i=rnd(0,L-2),r=rs[i],b=rs[i+1],why=`「${r.a}」の[次|つぎ]は「${b.a}」だよ。`,hl=[...C2(i,1),...C2(i+1,1)];
+      if(ok)return {txt:`「${r.a}」の[次|つぎ]は「${b.a}」。`,why,hl};
+      const a=rs.filter((x,j)=>j!==i&&j!==i+1&&Math.abs(j-i)<=2).map(x=>x.a); if(!a.length)return null;
+      return {txt:`「${r.a}」の[次|つぎ]は「${pick(a)}」。`,why,hl};},
+    ok=>{if(!m.place)return null;const i=ri(),r=rs[i],why=`「${r.a}」の[場所|ばしょ]は「${r.p}」だよ。`,hl=C2(i,1,2);
+      if(ok)return {txt:`「${r.a}」は「${r.p}」でする。`,why,hl};
+      const alts=[...(m.rain&&isPl(r.r)?[r.r]:[]),...rs.map(x=>x.p)].filter(x=>P(x)!==P(r.p)); if(!alts.length)return null;
+      return {txt:`「${r.a}」は「${pick(alts)}」でする。`,why,hl};},
+    ok=>{if(!m.rain)return null;const c=rs.map((r,i)=>i).filter(i=>rs[i].r!==null); if(!c.length)return null;
+      const i=pick(c),r=rs[i],X=r.r==='X',hl=C2(i,1,3);
+      const why=X?`[雨|あめ]のとき、「${r.a}」は[中止|ちゅうし]になるよ。`:`[雨|あめ]のとき、「${r.a}」は「${r.r}」でするよ。`;
+      if(ok)return {txt:X?`[雨|あめ]のとき、「${r.a}」は[中止|ちゅうし]になる。`:`[雨|あめ]のとき、「${r.a}」は「${r.r}」でする。`,why,hl};
+      return {txt:`[雨|あめ]のとき、「${r.a}」は「${r.p}」でする。`,why,hl};},
+    ok=>{let i=ri(),j=ri(); if(i===j)return null; if(i>j)[i,j]=[j,i];
+      const a=rs[i],b=rs[j],why=`「${a.a}」は${T(a.s)}、「${b.a}」は${T(b.s)}に[始|はじ]まるので、「${a.a}」が[先|さき]だよ。`,hl=[...C2(i,0,1),...C2(j,0,1)];
+      return ok?{txt:`「${a.a}」は「${b.a}」より[前|まえ]にある。`,why,hl}:{txt:`「${b.a}」は「${a.a}」より[前|まえ]にある。`,why,hl};},
+    ok=>{if(st)return null;const i=ri(),r=rs[i],why=`「${r.a}」は${T(r.s)}から${T(r.e)}までの${D(r.d)}だよ。`,hl=C2(i,0,1);
+      if(ok)return {txt:`「${r.a}」は${D(r.d)}ある。`,why,hl};
+      const d2=r.d+pick([10,-10,15,-15,60].filter(x=>r.d+x>0));
+      return {txt:`「${r.a}」は${D(d2)}ある。`,why,hl};}
+  ];
+  return truthQ(mk,lv,'[予定表|よていひょう]に[合|あ]っている[文|ぶん]はどれかな？1つえらんでね。');
+}
+
+/* ========== 行事カレンダー ========== */
+const N_SHI='[始業式|しぎょうしき]',N_NYU='[入学式|にゅうがくしき]',N_SHU='[終業式|しゅうぎょうしき]',N_SHURYO='[修了式|しゅうりょうしき]',N_SOTSU='[卒業式|そつぎょうしき]',N_CLUB='クラブ[活動|かつどう]';
+const CAL_RECIPE={
+ 4:{ev:[{n:'[身体|しんたい][測定|そくてい]'},{n:'[遠足|えんそく]',mk:'▲',dow:[5]},{n:'[避難|ひなん][訓練|くんれん]'},{n:'[家庭|かてい][訪問|ほうもん]',mk:'●',len:3}],club:2},
+ 5:{ev:[{n:'[参観日|さんかんび]',sat:true},{n:'[校外|こうがい][学習|がくしゅう]',mk:'▲'},{n:'[体力|たいりょく]テスト',len:2},{n:'[歯科|しか][検診|けんしん]'}],club:3},
+ 6:{ev:[{n:'[修学|しゅうがく][旅行|りょこう]',mk:'▲',len:3,dow:[3],first:true},{n:'プール[開|びら]き'},{n:'[避難|ひなん][訓練|くんれん]'},{n:'[個人|こじん][面談|めんだん]',mk:'●',len:2}],club:3},
+ 7:{ev:[{n:'[個人|こじん][懇談|こんだん]',mk:'●',len:3},{n:'[大|おお]そうじ'},{n:'プール[学習|がくしゅう]'}],club:2},
+ 9:{ev:[{n:'[運動会|うんどうかい]',mk:'▲',sat:true},{n:'[運動会|うんどうかい]の[予行|よこう][練習|れんしゅう]',pre:true},{n:'[避難|ひなん][訓練|くんれん]'},{n:'[身体|しんたい][測定|そくてい]'}],club:2},
+ 10:{ev:[{n:'[職場|しょくば][見学|けんがく]',len:2},{n:'[校外|こうがい][学習|がくしゅう]',mk:'▲'},{n:'[音楽会|おんがくかい]'},{n:'[身体|しんたい][測定|そくてい]'}],club:3},
+ 11:{ev:[{n:'[文化祭|ぶんかさい]',mk:'▲',sat:true},{n:'[宿泊|しゅくはく][学習|がくしゅう]',mk:'▲',len:2,first:true},{n:'[参観日|さんかんび]',mk:'●'},{n:'[避難|ひなん][訓練|くんれん]'}],club:2},
+ 12:{ev:[{n:'[個人|こじん][懇談|こんだん]',mk:'●',len:3},{n:'[大|おお]そうじ'},{n:'もちつき[大会|たいかい]'}],club:2},
+ 1:{ev:[{n:'[書|か]き[初|ぞ]め[大会|たいかい]'},{n:'[職場|しょくば][見学|けんがく]',len:2},{n:'[避難|ひなん][訓練|くんれん]'},{n:'[参観日|さんかんび]',mk:'●'}],club:2},
+ 2:{ev:[{n:'[作品展|さくひんてん]',mk:'▲',sat:true},{n:'[参観日|さんかんび]',mk:'●'},{n:'[身体|しんたい][測定|そくてい]'},{n:'マラソン[大会|たいかい]',mk:'▲'}],club:3},
+ 3:{ev:[{n:'[大|おお]そうじ'},{n:'お[別|わか]れ[会|かい]'}],club:2}
+};
+const CAL_EXTRA=['[全校|ぜんこう][集会|しゅうかい]','[委員会|いいんかい][活動|かつどう]','[交通|こうつう][安全|あんぜん][教室|きょうしつ]','[読|よ]み[聞|き]かせ'];
+const CINFO={
+  1:{marks:false,sat:false,club:false,extra:1,months:[5,6,10,11,2],minS:4},
+  2:{marks:true,sat:true,club:false,extra:0,months:[4,5,6,7,9,10,11,12,1,2,3],minS:3},
+  3:{marks:true,sat:true,club:true,extra:2,months:[4,5,6,7,9,10,11,12,1,2,3],minS:3}
+};
+function holidaysOf(y,m){
+  const s=new Set(), dow=d=>new Date(y,m-1,d).getDay(), nd=new Date(y,m,0).getDate();
+  const nthMon=n=>{const f=dow(1);return 1+((8-f)%7)+(n-1)*7;};
+  const add={1:[1,nthMon(2)],2:[11,23],3:[y===2027?21:20],4:[29],5:[3,4,5],7:[nthMon(3)],8:[11],9:[nthMon(3),23],10:[nthMon(2)],11:[3,23]}[m]||[];
+  add.forEach(d=>s.add(d));
+  [...s].sort((a,b)=>a-b).forEach(d=>{if(dow(d)===0){let x=d+1;while(s.has(x))x++;if(x<=nd)s.add(x);}});
+  for(let d=2;d<nd;d++)if(!s.has(d)&&s.has(d-1)&&s.has(d+1)&&dow(d)!==0)s.add(d);
+  return s;
+}
+function genCal(info){
+  const I=CINFO[info]||CINFO[2];
+  for(let tries=0;tries<30;tries++){const c=buildCal(I);if(c.evs.filter(e=>!e.rep&&e.ds.length===1).length>=I.minS)return c;}
+  return buildCal(I);
+}
+function buildCal(I){
+  const m=pick(I.months),y=m>=4?2026:2027;
+  const nd=new Date(y,m,0).getDate(),hs=holidaysOf(y,m),days=[null];
+  for(let d=1;d<=nd;d++){const w=new Date(y,m-1,d).getDay();days.push({d,w,hol:w===0||w===6||hs.has(d),lab:hs.has(d)?'[祝日|しゅくじつ]':'',brk:'',ev:[],mk:''});}
+  const school=d=>!days[d].hol;
+  const open=d=>d>=1&&d<=nd&&school(d)&&days[d].ev.length===0;
+  const firstOpen=f=>{for(let d=f;d<=nd;d++)if(school(d))return d;return null;};
+  const lastOpen=t=>{for(let d=t;d>=1;d--)if(school(d))return d;return null;};
+  const evs=[];
+  const put=(n,ds,mk,first,rep)=>{mk=I.marks?(mk||''):'';ds.forEach((d,k)=>{const x=(first&&k>0)?'':mk;days[d].ev.push({n,mk:x});if(x)days[d].mk=x;});evs.push({n,ds,mk,first:!!first,rep:!!rep});};
+  const brk=(f,t,name)=>{for(let d=f;d<=t;d++){days[d].hol=true;days[d].brk=name;}if(f<=t)days[f].brkStart=true;};
+  if(m===4){const s=firstOpen(7);brk(1,s-1,'[春休|はるやす]み');put(N_SHI,[s],'●');put(N_NYU,[firstOpen(s+1)],'●');}
+  if(m===9){const s=firstOpen(1);brk(1,s-1,'[夏休|なつやす]み');put(N_SHI,[s],'●');}
+  if(m===1){const s=firstOpen(7);brk(1,s-1,'[冬休|ふゆやす]み');put(N_SHI,[s],'●');}
+  if(m===7){const e=lastOpen(20);put(N_SHU,[e],'●');brk(e+1,nd,'[夏休|なつやす]み');}
+  if(m===12){const e=lastOpen(24);put(N_SHU,[e],'●');brk(e+1,nd,'[冬休|ふゆやす]み');}
+  if(m===3){const e=lastOpen(24);put(N_SHURYO,[e],'●');brk(e+1,nd,'[春休|はるやす]み');put(N_SOTSU,[lastOpen(e-4)],'●');}
+  const rc=CAL_RECIPE[m]; let lastSat=null;
+  for(const sp of rc.ev){
+    if((sp.sat||sp.pre)&&!I.sat)continue;
+    if(sp.sat){
+      const c=[];
+      for(let d=1;d<=nd;d++){
+        if(days[d].w!==6||days[d].brk||hs.has(d))continue;
+        let f=d+2; while(f<=nd&&days[f].hol)f++;
+        if(f<=nd&&f-d<=4&&open(f)&&d>=8)c.push([d,f]);
+      }
+      if(!c.length)continue;
+      const [d,f]=pick(c); days[d].hol=false; days[d].satSchool=true; put(sp.n,[d],sp.mk);
+      days[f].hol=true; days[f].lab='[代休|だいきゅう]'; lastSat=d; continue;
+    }
+    const len=sp.len||1,c=[];
+    for(let d=1;d+len-1<=nd;d++){
+      if(sp.dow&&!sp.dow.includes(days[d].w))continue;
+      if(sp.pre&&(lastSat==null||d<lastSat-6||d>=lastSat))continue;
+      let ok=true;for(let k=0;k<len;k++)if(!open(d+k)){ok=false;break;}
+      if(ok)c.push(d);
+    }
+    if(!c.length)continue;
+    const d=pick(c); put(sp.n,Array.from({length:len},(_,k)=>d+k),sp.mk,sp.first);
+  }
+  for(const n of shuffle(CAL_EXTRA).slice(0,I.extra)){
+    const c=[];for(let d=1;d<=nd;d++)if(open(d))c.push(d);
+    if(c.length)put(n,[pick(c)],'');
+  }
+  if(I.club){
+    const weds=[];for(let d=1;d<=nd;d++)if(days[d].w===3&&open(d))weds.push(d);
+    const cc=Math.min(rc.club,weds.length);
+    if(cc>=1){const ds=shuffle(weds).slice(0,cc).sort((a,b)=>a-b);put(N_CLUB,ds,'',false,true);}
+  }
+  return {kind:'cal',y,m,nd,days,evs,marks:I.marks,easy:!I.marks};
+}
+function renderCal(c){
+  let h=`<h2 class="mtitle">${c.y}年${c.m}月の${R('[行事|ぎょうじ][予定|よてい]')}</h2><div class="tw"><table class="cal${c.easy?' easy':''}"><thead><tr>`;
+  WDR.forEach((w,i)=>{h+=`<th id="h${i}" class="${i===0?'sun':i===6?'sat':''}">${R(w)}</th>`;});
+  h+='</tr></thead><tbody><tr>';
+  const f=c.days[1].w; for(let i=0;i<f;i++)h+='<td class="empty"></td>';
+  for(let d=1;d<=c.nd;d++){
+    const x=c.days[d];
+    if(x.w===0&&d>1)h+='</tr><tr>';
+    const dc=x.w===6?'b':(x.hol?'r':'');
+    const tag=x.hol?`<span class="tag">${R('[休|やす]み')}</span>`:(x.satSchool?`<span class="tag go">${R('[登校日|とうこうび]')}</span>`:'');
+    let lab='';
+    if(x.brk){if(x.brkStart||x.w===0)lab=x.brk;} else if(x.lab) lab=x.lab;
+    h+=`<td id="c${d}" class="${x.hol?'hol':''}"><div class="dtop"><span class="dn ${dc}">${d}</span>${tag}</div>`;
+    if(lab)h+=`<div class="lab">${R(lab)}</div>`;
+    x.ev.forEach(o=>{h+=`<div class="ev">${o.mk?`<span class="mk">${o.mk}</span>`:''}${R(o.n)}</div>`;});
+    h+='</td>';
+  }
+  const last=c.days[c.nd].w; for(let i=last;i<6;i++)h+='<td class="empty"></td>';
+  h+='</tr></tbody></table></div>';
+  h+=`<div class="legend" id="legend"><div id="lg0">${R('いつもは [登校|とうこう] 8時30分、[下校|げこう] 15時30分')}</div>`;
+  if(c.marks)h+=`<div id="lg1">${R('● … [下校|げこう]が12時の日')}</div><div id="lg2">${R('▲ … [登校|とうこう]が8時の日')}</div>`;
+  h+=`<div><span class="sw"></span>${R('… [休|やす]みの日')}</div></div>`;
+  return h;
+}
+
+/* ---- カレンダーの問題 ---- */
+const singles=c=>c.evs.filter(e=>!e.rep&&e.ds.length===1);
+const MD=(c,d)=>`${c.m}月${d}日`;
+function cEvDate(c,lv){
+  const S=singles(c); if(!S.length)return null;
+  const e=pick(S),d=e.ds[0];
+  const w=shuffle([d+1,d-1,d+7,d-7].filter(x=>x>=1&&x<=c.nd)).map(x=>MD(c,x));
+  const opts=choiceOpts(MD(c,d),w,[d+2,d-2,d+14,d-14].filter(x=>x>=1&&x<=c.nd).map(x=>MD(c,x))); if(!opts)return null;
+  return {lv,type:'choice',text:`「${e.n}」は[何|なん]日かな？`,opts,ans:MD(c,d),exp:`カレンダーで「${e.n}」をさがすと、${d}日に[書|か]いてあるよ。`,hl:['c'+d]};
+}
+function cDateEv(c,lv){
+  const ds=[];for(let d=1;d<=c.nd;d++)if(c.days[d].ev.length===1)ds.push(d); if(!ds.length)return null;
+  const d=pick(ds),n=c.days[d].ev[0].n;
+  const opts=choiceOpts(n,shuffle(c.evs.map(e=>e.n)),[N_CLUB,'[身体|しんたい][測定|そくてい]','[避難|ひなん][訓練|くんれん]','[参観日|さんかんび]','[大|おお]そうじ']); if(!opts)return null;
+  return {lv,type:'choice',text:`${MD(c,d)}には、[何|なに]があるかな？`,opts,ans:n,exp:`${d}日のますを[見|み]ると、「${n}」と[書|か]いてあるよ。`,hl:['c'+d]};
+}
+function cEvDow(c,lv){
+  const S=singles(c); if(!S.length)return null;
+  const e=pick(S),d=e.ds[0],w=c.days[d].w;
+  const opts=choiceOpts(WDT(w),[WDT((w+1)%7),WDT((w+6)%7),WDT((w+2)%7)],[]); if(!opts)return null;
+  return {lv,type:'choice',text:`「${e.n}」は[何|なん][曜|よう]日かな？`,opts,ans:WDT(w),
+    exp:`「${e.n}」は${d}日。${d}日は[上|うえ]に「${WDR[w]}」と[書|か]いてある[列|れつ]にあるので、${WDT(w)}だよ。`,hl:['c'+d,'h'+w]};
+}
+function cTime(c,lv){
+  const S=singles(c); if(!S.length)return null;
+  const e=pick(S),d=e.ds[0];
+  const kind=e.mk==='●'?'down':e.mk==='▲'?'up':pick(['down','up']);
+  const ans=kind==='down'?(e.mk==='●'?720:930):(e.mk==='▲'?480:510);
+  const opts=shuffle([480,510,720,930].map(t=>({t,ok:t===ans})));
+  const word=kind==='down'?'[下校|げこう]':'[登校|とうこう]';
+  let exp;
+  if(e.mk==='●'&&kind==='down') exp=`「${e.n}」の${d}日には●がついているね。●の日は[下校|げこう]が12時だよ。`;
+  else if(e.mk==='▲'&&kind==='up') exp=`「${e.n}」の${d}日には▲がついているね。▲の日は[登校|とうこう]が8時だよ。`;
+  else if(!c.marks) exp=`カレンダーの[下|した]に「いつもは[登校|とうこう]8時30分、[下校|げこう]15時30分」と[書|か]いてあるね。だから、${T(ans)}に${word}するよ。`;
+  else exp=`「${e.n}」の${d}日には、${kind==='down'?'●':'▲'}がついていないね。だから、いつもと[同|おな]じ${T(ans)}に${word}するよ。`;
+  return {lv,type:'clock',opts,ans:T(ans),text:`「${e.n}」の日は、[何|なん]時に${word}するかな？[時計|とけい]からえらんでね。`,exp:exp+clockHint(ans),
+    hl:['c'+d,kind==='down'?'lg1':'lg2','lg0']};
+}
+function cSpan(c,lv){
+  const M=c.evs.filter(e=>!e.rep&&e.ds.length>=2), S=singles(c);
+  const pairs=[];for(const a of S)for(const b of S){const da=a.ds[0],db=b.ds[0];if(db-da>=3&&db-da<=20)pairs.push([a,b]);}
+  const k=[];if(M.length)k.push('M');if(pairs.length)k.push('P'); if(!k.length)return null;
+  if(pick(k)==='M'){
+    const e=pick(M),n=e.ds.length,d1=e.ds[0],d2=e.ds[n-1];
+    const opts=choiceOpts(`${n}日[間|かん]`,[`${n-1}日[間|かん]`,`${n+1}日[間|かん]`,`${n+2}日[間|かん]`],[]);
+    return {lv,type:'choice',text:`「${e.n}」は[何|なん]日[間|かん]あるかな？`,opts,ans:`${n}日[間|かん]`,
+      exp:`「${e.n}」は${d1}日から${d2}日まで。${d2}−${d1}＋1＝${n}で、${n}日[間|かん]だよ。[引|ひ]き[算|ざん]だけだと1日たりなくなるので、[気|き]をつけてね。`,hl:e.ds.map(d=>'c'+d)};
+  }
+  const [a,b]=pick(pairs),da=a.ds[0],db=b.ds[0],n=db-da+1;
+  const opts=choiceOpts(`${n}日[間|かん]`,[`${n-1}日[間|かん]`,`${n+1}日[間|かん]`,`${n-2}日[間|かん]`],[]);
+  const hl=[];for(let d=da;d<=db;d++)hl.push('c'+d);
+  return {lv,type:'choice',text:`「${a.n}」の日から「${b.n}」の日まで、[何|なん]日[間|かん]あるかな？（どちらの日も[数|かぞ]えてね）`,opts,ans:`${n}日[間|かん]`,
+    exp:`「${a.n}」は${da}日、「${b.n}」は${db}日。${db}−${da}＋1＝${n}で、${n}日[間|かん]だよ。[引|ひ]き[算|ざん]だけだと1日たりなくなるので、[気|き]をつけてね。`,hl};
+}
+function cClub(c,lv){
+  const e=c.evs.find(x=>x.rep); if(!e)return null;
+  const n=e.ds.length;
+  return {lv,type:'num',unit:'[回|かい]',val:n,ans:n+'[回|かい]',text:`「${N_CLUB}」は、この[月|つき]に[何|なん][回|かい]あるかな？`,
+    exp:`「${N_CLUB}」は、${e.ds.map(d=>d+'日').join('、')}にあるので、${n}[回|かい]だよ。`,hl:e.ds.map(d=>'c'+d)};
+}
+function cCountHol(c,lv){
+  const H=[];for(let d=1;d<=c.nd;d++)if(c.days[d].hol)H.push(d);
+  const n=H.length,ds=c.days.slice(1),wk=ds.filter(x=>x.w===0||x.w===6).length;
+  let exp=`[色|いろ]がついていて「[休|やす]み」と[書|か]いてある日を[数|かぞ]えると、${n}日だよ。`;
+  if(ds.some(x=>x.lab==='[祝日|しゅくじつ]'&&!x.brk&&x.w!==0&&x.w!==6))exp+='[土|ど][曜|よう]日・[日|にち][曜|よう]日のほかに、[祝日|しゅくじつ]も[休|やす]みだよ。';
+  if(ds.some(x=>x.lab==='[代休|だいきゅう]'))exp+='[代休|だいきゅう]も[休|やす]みに[入|はい]るよ。';
+  const b=ds.find(x=>x.brk); if(b)exp+=`${b.brk}も[休|やす]みに[入|はい]るよ。`;
+  const s=ds.find(x=>x.satSchool); if(s)exp+=`${s.d}日は[土|ど][曜|よう]日だけど「${s.ev[0].n}」があるので、[休|やす]みではないよ。`;
+  return {lv,type:'num',unit:'日',val:n,ans:n+'日',traps:[wk],text:'この[月|つき]の[休|やす]みの日は、[何|なん]日あるかな？',exp,hl:H.map(d=>'c'+d)};
+}
+function cCountOpen(c,lv){
+  const O=[];for(let d=1;d<=c.nd;d++)if(!c.days[d].hol)O.push(d);
+  const n=O.length,h=c.nd-n,wk=c.days.slice(1).filter(x=>x.w===0||x.w===6).length;
+  return {lv,type:'num',unit:'日',val:n,ans:n+'日',traps:[c.nd-wk],text:'この[月|つき]で、[休|やす]みではない日は[何|なん]日あるかな？',
+    exp:`この[月|つき]は${c.nd}日まであるよ。[休|やす]みの日が${h}日あるので、${c.nd}−${h}＝${n}で、${n}日だよ。`,hl:O.map(d=>'c'+d)};
+}
+function cCountMark(c,lv){
+  if(!c.marks)return null;
+  const k=[];for(const mk of ['●','▲']){const ds=[];for(let d=1;d<=c.nd;d++)if(c.days[d].mk===mk)ds.push(d);if(ds.length)k.push({mk,ds});}
+  if(!k.length)return null;
+  const o=k.find(x=>x.ds.length>=2&&Math.random()<0.7)||pick(k),n=o.ds.length,down=o.mk==='●';
+  return {lv,type:'num',unit:'日',val:n,ans:n+'日',
+    text:down?'[下校|げこう]が12時の日は、[何|なん]日あるかな？':'[登校|とうこう]が8時の日は、[何|なん]日あるかな？',
+    exp:`[下|した]の[説明|せつめい]を[見|み]ると、${down?'[下校|げこう]が12時の日は●':'[登校|とうこう]が8時の日は▲'}だね。${o.mk}がついているのは${o.ds.map(d=>d+'日').join('、')}の${n}日だよ。`,
+    hl:[...o.ds.map(d=>'c'+d),down?'lg1':'lg2']};
+}
+function cNextSchool(c,lv){
+  const cand=[];
+  for(const e of singles(c)){
+    const d=e.ds[0]; if(d+1>c.nd||!c.days[d+1].hol)continue;
+    let x=d+1; while(x<=c.nd&&c.days[x].hol)x++;
+    if(x<=c.nd&&x-d>=2&&x-d<=6)cand.push({e,d,x});
+  }
+  if(!cand.length)return null;
+  const good=cand.filter(o=>o.x-o.d>=4), {e,d,x}=pick(good.length&&Math.random()<0.8?good:cand);
+  const traps=[d+1]; for(let y=d+1;y<x;y++)if(c.days[y].w>=1&&c.days[y].w<=5){traps.push(y);break;}
+  const fb=[x+1,x+7,x-7,d+2].filter(v=>v>=1&&v<=c.nd&&v!==x);
+  const opts=choiceOpts(MD(c,x),shuffle(traps).map(v=>MD(c,v)),fb.map(v=>MD(c,v))); if(!opts)return null;
+  const hl=[];for(let y=d;y<=x;y++)hl.push('c'+y);
+  return {lv,type:'choice',text:`「${e.n}」の[次|つぎ]に[学校|がっこう]へ[行|い]く日は、[何|なん]日かな？`,opts,ans:MD(c,x),
+    exp:`「${e.n}」は${d}日。`+(x-1===d+1?`${d+1}日は[休|やす]みの日だよ。`:`${d+1}日から${x-1}日までは、[休|やす]みの日がつづくよ。`)+`だから、[次|つぎ]に[学校|がっこう]へ[行|い]くのは${x}日だよ。`,hl};
+}
+function cTruth(c,lv){
+  const S=singles(c),M=c.evs.filter(e=>!e.rep&&e.ds.length>=2);
+  const mk=[
+    ok=>{if(!S.length)return null;const e=pick(S),d=e.ds[0],why=`「${e.n}」は${MD(c,d)}だよ。`,hl=['c'+d];
+      if(ok)return {txt:`「${e.n}」は${MD(c,d)}。`,why,hl};
+      const a=[d+1,d-1,d+7,d-7].filter(x=>x>=1&&x<=c.nd);return {txt:`「${e.n}」は${MD(c,pick(a))}。`,why,hl};},
+    ok=>{if(!S.length)return null;const e=pick(S),d=e.ds[0],w=c.days[d].w,why=`「${e.n}」の${d}日は${WDT(w)}だよ。`,hl=['c'+d,'h'+w];
+      return {txt:`「${e.n}」は${WDT(ok?w:(w+pick([1,6]))%7)}。`,why,hl};},
+    ok=>{const sp=[];for(let d=1;d<=c.nd;d++){const x=c.days[d];if(x.satSchool||x.lab||(x.hol&&x.w>=1&&x.w<=5))sp.push(d);}
+      const d=sp.length&&Math.random()<0.75?pick(sp):rnd(1,c.nd),x=c.days[d],h=x.hol;
+      const sH=`${MD(c,d)}は[休|やす]みの日。`,sS=`${MD(c,d)}は[学校|がっこう]へ[行|い]く日。`;
+      const why=h?`${d}日は[色|いろ]がついていて、「[休|やす]み」と[書|か]いてあるよ。`:`${d}日は[休|やす]みではないよ。`+(x.satSchool?`[土|ど][曜|よう]日だけど「${x.ev[0].n}」があるね。`:'');
+      return {txt:ok===h?sH:sS,why,hl:['c'+d]};},
+    ok=>{if(S.length<2)return null;let[a,b]=shuffle(S);if(a.ds[0]===b.ds[0])return null;if(a.ds[0]>b.ds[0])[a,b]=[b,a];
+      const why=`「${a.n}」は${a.ds[0]}日、「${b.n}」は${b.ds[0]}日なので、「${a.n}」が[先|さき]だよ。`,hl=['c'+a.ds[0],'c'+b.ds[0]];
+      return ok?{txt:`「${a.n}」は「${b.n}」より[前|まえ]にある。`,why,hl}:{txt:`「${b.n}」は「${a.n}」より[前|まえ]にある。`,why,hl};},
+    ok=>{if(!c.marks)return null;
+      if(ok){const A=S.filter(e=>e.mk);if(!A.length)return null;const e=pick(A),d=e.ds[0];
+        return e.mk==='●'?{txt:`「${e.n}」の日は、[下校|げこう]が12時。`,why:`「${e.n}」の${d}日には●がついているので、[下校|げこう]は12時だよ。`,hl:['c'+d,'lg1']}
+                         :{txt:`「${e.n}」の日は、[登校|とうこう]が8時。`,why:`「${e.n}」の${d}日には▲がついているので、[登校|とうこう]は8時だよ。`,hl:['c'+d,'lg2']};}
+      const B=S.filter(e=>e.mk!=='●');if(!B.length)return null;const e=pick(B),d=e.ds[0];
+      return {txt:`「${e.n}」の日は、[下校|げこう]が12時。`,why:e.mk==='▲'?`「${e.n}」の${d}日は▲なので、[登校|とうこう]が8時の日だよ。[下校|げこう]はいつもと[同|おな]じ15時30分だよ。`:`「${e.n}」の${d}日には●がついていないので、[下校|げこう]は15時30分だよ。`,hl:['c'+d,'lg1']};},
+    ok=>{if(!M.length)return null;const e=pick(M),n=e.ds.length,why=`「${e.n}」は${e.ds[0]}日から${e.ds[n-1]}日までの${n}日[間|かん]だよ。`,hl=e.ds.map(d=>'c'+d);
+      return {txt:`「${e.n}」は${ok?n:n-1}日[間|かん]。`,why,hl};}
+  ];
+  return truthQ(mk,lv,'カレンダーに[合|あ]っている[文|ぶん]はどれかな？1つえらんでね。');
+}
+
+const POOL={
+  day:{1:[dStartAct,dNext,dPlace,dRain,dWhen],2:[dDur,dAfter,dEnd,dDuring],3:[dGap,dTotal,dCountRain],4:[dTruth]},
+  cal:{1:[cEvDate,cDateEv,cEvDow],2:[cTime,cSpan,cClub],3:[cCountHol,cCountOpen,cCountMark,cNextSchool],4:[cTruth]}
+};
+/* 問題で見る場所（予定表の行・カレンダーの日）を取り出す */
+function targetsOf(q){
+  const s=new Set();
+  (q.hl||[]).forEach(id=>{let m=/^r(\d+)/.exec(id);if(m){s.add('r'+m[1]);return;}m=/^c(\d+)$/.exec(id);if(m)s.add(id);});
+  return s;
+}
+/* usedTgt：同じ資料ですでに見た場所。見る場所が少ない問題は、前の問題と重ならないようにする */
+function genQ(mat,lv,usedFn,usedKey,usedTgt){
+  usedTgt=usedTgt||new Set();
+  for(const strict of [true,false]){
+    for(let L=lv;L>=1;L--){
+      const pool=POOL[mat.kind][L];
+      const order=[...shuffle(pool.filter(f=>!usedFn.has(f))),...shuffle(pool.filter(f=>usedFn.has(f)))];
+      for(const f of order)for(let t=0;t<15;t++){
+        const q=f(mat,lv); if(!q)break;
+        const key=P(q.text)+'|'+P(q.ans); if(usedKey.has(key))continue;
+        const tg=targetsOf(q),small=tg.size<=3;
+        if(strict&&small&&[...tg].some(x=>usedTgt.has(x)))continue;
+        usedFn.add(f);usedKey.add(key);if(small)tg.forEach(x=>usedTgt.add(x));
+        return q;
+      }
+    }
+  }
+  return null;
+}
+/* こたえやすさの調整 */
+function toChoice(q){
+  const v=q.val,isMin=q.unit==='分';
+  const deltas=isMin?[...shuffle([-10,10,-5,5]),...shuffle([15,-15,20,-20,60,-60])]:[...shuffle([-1,1]),...shuffle([2,-2,3])];
+  const fmt=x=>isMin?D(x):x+q.unit;
+  const cands=[...(q.traps||[]),...deltas.map(d=>v+d)].filter(x=>x>0&&x!==v);
+  const opts=choiceOpts(fmt(v),cands.map(fmt),[]);
+  if(opts){q.type='choice';q.opts=opts;}
+}
+function trimOpts(q,n){
+  if(!q.opts||q.opts.length<=n)return;
+  const drop=new Set(shuffle(q.opts.map((o,i)=>i).filter(i=>!q.opts[i].ok)).slice(0,q.opts.length-n));
+  q.opts=q.opts.filter((o,i)=>!drop.has(i));
+}
+function adjustQ(q,set){
+  if(set.ansMode==='choice'&&(q.type==='num'||q.type==='hm'))toChoice(q);
+  if(q.type==='choice'||q.type==='clock')trimOpts(q,set.choices);
+  return q;
+}
+
+/* ========== 画面 ========== */
+const SKEY='yotei_calendar_yomitori_v1';
+const S={mat:'mix',info:2,level:2,mode:'ramp',choices:4,ansMode:'input',hint:'off',count:4,sound:'on'};
+/* プリセット（資料・問題の数・効果音は設定の値を使う） */
+const PRESETS={
+  easy:{info:1,level:1,mode:'fixed',choices:2,ansMode:'choice',hint:'on'},
+  normal:{info:2,level:3,mode:'ramp',choices:3,ansMode:'choice',hint:'off'},
+  challenge:{info:3,level:4,mode:'ramp',choices:4,ansMode:'input',hint:'off'}
+};
+const PNAME={easy:'かんたん',normal:'ふつう',challenge:'チャレンジ'};
+const MATNAME={day:'1[日|にち]の[予定表|よていひょう]',cal:'[行事|ぎょうじ]カレンダー',mix:'[予定表|よていひょう]とカレンダー'};
+const NUMKEYS=['level','info','choices'];
+let G=null, ac=null;
+const $=id=>document.getElementById(id);
+function loadS(){try{const o=JSON.parse(localStorage.getItem(SKEY)||'{}');Object.keys(S).forEach(k=>{if(o[k]!==undefined)S[k]=o[k];});}catch(e){}}
+function saveS(){try{localStorage.setItem(SKEY,JSON.stringify(S));}catch(e){}}
+
+function unlockAudio(){try{if(!ac){const C=window.AudioContext||window.webkitAudioContext;if(C)ac=new C();}if(ac&&ac.state==='suspended')ac.resume();}catch(e){}}
+function tones(list,type,vol){
+  if(S.sound!=='on'||!ac)return;
+  try{let t=ac.currentTime+0.02;
+    for(const [f,d] of list){const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+      o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+d+0.02);t+=d*0.8;}
+  }catch(e){}
+}
+const sndOK=()=>tones([[659.25,.16],[783.99,.16],[1046.5,.32]],'sine',0.25);
+const sndNG=()=>tones([[392,.22],[349.23,.3]],'triangle',0.12);
+
+function show(id){['start','settings','play','result'].forEach(s=>{$(s).hidden=s!==id;});if(id==='start')updNote();window.scrollTo(0,0);}
+function updNote(){$('pnote').innerHTML=R(`[問題|もんだい]：${S.count}[問|もん]　[資料|しりょう]：${MATNAME[S.mat]}　（「[設定|せってい]」で[変|か]えられるよ）`);}
+function syncSeg(){
+  document.querySelectorAll('.seg').forEach(seg=>{const k=seg.dataset.key;seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===String(S[k]))));});
+  $('cnt').value=S.count;
+}
+function clampInput(inp){
+  const mn=+inp.dataset.min||0,mx=+inp.dataset.max||999;
+  let v=parseInt(String(inp.value).replace(/[^0-9]/g,''),10); if(isNaN(v))v=mn;
+  v=Math.max(mn,Math.min(mx,v)); inp.value=v; return v;
+}
+function setHL(ids){
+  document.querySelectorAll('#mat .hl').forEach(e=>e.classList.remove('hl'));
+  (ids||[]).forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hl');});
+}
+/* 1つの資料で出す問題の数：4の倍数なら4問、それ以外は3問 */
+const perMat=()=>G.set.count%4===0?4:3;
+function levelFor(pos){
+  const s=G.set; if(s.mode==='fixed')return s.level;
+  const step=perMat()===4?[0,1,1,2][pos]:Math.min(pos,2);
+  return Math.max(1,s.level-2+step);
+}
+function startGame(cfg){
+  unlockAudio();
+  const set={...S,...(cfg||{})};
+  G={i:0,res:[],mat:null,matNo:0,first:pick(['day','cal']),usedFn:null,usedKey:null,q:null,set,cfg};
+  show('play'); nextQ();
+}
+function newMat(kind){
+  G.mat=kind==='day'?genDay(G.set.info):genCal(G.set.info); G.usedFn=new Set(); G.usedKey=new Set(); G.usedTgt=new Set();
+  $('mat').innerHTML=G.mat.kind==='day'?renderDay(G.mat):renderCal(G.mat);
+}
+function nextQ(){
+  if(G.i>=G.set.count){showResult();return;}
+  const pos=G.i%perMat();
+  if(pos===0){
+    const m=G.set.mat,kind=m==='mix'?(G.matNo%2===0?G.first:(G.first==='day'?'cal':'day')):m;
+    newMat(kind); G.matNo++; window.scrollTo(0,0);
+  }
+  let q=genQ(G.mat,levelFor(pos),G.usedFn,G.usedKey,G.usedTgt);
+  if(!q){newMat('day');q=genQ(G.mat,levelFor(pos),G.usedFn,G.usedKey,G.usedTgt);}
+  G.q=adjustQ(q,G.set); G.answered=false; G.hintUsed=false; setHL([]); renderQ(G.q);
+  $('progTxt').innerHTML=`${G.i+1} / ${G.set.count} ${R('[問|もん]')}`;
+  $('pbarFill').style.width=(G.i/G.set.count*100)+'%';
+  if(pos!==0){const qp=$('qp');if(qp.getBoundingClientRect().top<0)qp.scrollIntoView({block:'start'});}
+}
+function numW(id,unit,max,step){
+  return `<div class="num"><input id="${id}" type="text" inputmode="numeric" pattern="[0-9]*" data-min="0" data-max="${max}" value="0" aria-label="${P(unit)}"><div class="steps"><button type="button" class="step" data-t="${id}" data-d="${step}" aria-label="ふやす">△</button><button type="button" class="step" data-t="${id}" data-d="-${step}" aria-label="へらす">▽</button></div><span class="unit">${R(unit)}</span></div>`;
+}
+function hintIds(q){
+  if(q.long){const s=new Set();q.opts.forEach(o=>(o.hl||[]).forEach(x=>s.add(x)));return [...s];}
+  return q.hl||[];
+}
+function renderQ(q){
+  let h=`<div class="qmeta"><span class="chip">レベル${q.lv}</span></div><p class="qtext">${R(q.text)}</p>`;
+  if(G.set.hint==='on')h+=`<div class="hintrow"><button type="button" class="btn sub small" id="hintBtn">${R('ヒントを[見|み]る')}</button><span class="hintmsg" id="hintMsg" hidden>${R('[黄色|きいろ]のところを[見|み]てね')}</span></div>`;
+  h+='<div id="ans">';
+  if(q.type==='choice'){
+    const one=q.long||q.opts.some(o=>P(o.h).length>14);
+    h+=`<div class="opts ${one?'one':''}">`+q.opts.map((o,i)=>`<button type="button" class="opt" data-i="${i}"><span class="k">${KANA[i]}</span><span class="t">${R(o.h)}</span><span class="mk"></span></button>`).join('')+'</div>';
+  }else if(q.type==='clock'){
+    h+='<div class="opts clocks">'+q.opts.map((o,i)=>`<button type="button" class="opt" data-i="${i}" aria-label="${KANA[i]}"><span class="k">${KANA[i]}</span>${clockSVG(o.t)}<span class="mk"></span></button>`).join('')+'</div>';
+  }else if(q.type==='num'){
+    const step=q.unit==='分'?5:1;
+    h+=`<div class="numgroup">${numW('inA',q.unit,999,step)}</div><button type="button" class="btn go" id="goBtn">こたえる</button>`;
+  }else{
+    h+=`<div class="numgroup">${numW('inH','時[間|かん]',23,1)}${numW('inM','分',59,5)}</div><button type="button" class="btn go" id="goBtn">こたえる</button>`;
+  }
+  h+='</div><div id="fb" class="fb" hidden></div>';
+  $('qp').innerHTML=h;
+}
+function showHint(){
+  if(!G||G.answered)return;
+  G.hintUsed=true; setHL(hintIds(G.q));
+  $('hintMsg').hidden=false; $('hintBtn').disabled=true;
+  const first=document.querySelector('#mat .hl'); if(first)first.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function onAnswer(ok,chosen){
+  if(G.answered)return; G.answered=true;
+  const q=G.q;
+  document.querySelectorAll('#ans button, #ans input').forEach(b=>b.disabled=true);
+  const hb=$('hintBtn'); if(hb)hb.disabled=true;
+  if(q.type==='choice'||q.type==='clock'){
+    document.querySelectorAll('#ans .opt').forEach((b,i)=>{
+      const o=q.opts[i];
+      if(o.ok){b.classList.add('ok');b.querySelector('.mk').textContent='○ こたえ';}
+      else if(i===chosen){b.classList.add('ng');b.querySelector('.mk').textContent='えらんだ';}
+    });
+  }
+  ok?sndOK():sndNG();
+  G.res.push({q,ok,hint:G.hintUsed});
+  const last=G.i+1>=G.set.count;
+  let h=ok?`<p class="fbt">${R('○ せいかい！')}</p>`:`<p class="fbt">${R('おしい！こたえは')} ${R(q.ans)} ${R('だよ。')}</p>`;
+  if(!ok&&q.long&&chosen!=null&&q.opts[chosen]) h+=`<div class="exp"><span class="explab">${R('えらんだ[文|ぶん]')}</span>${R(q.opts[chosen].why)}</div>`;
+  h+=`<div class="exp"><span class="explab">${R('[見|み]るところ')}</span>${R(q.exp)}</div>`;
+  h+=`<div class="fbnext"><button type="button" class="btn" id="nextBtn">${last?R('けっかを[見|み]る'):'つぎへ'}</button></div>`;
+  const fb=$('fb'); fb.className='fb '+(ok?'ok':'ng'); fb.innerHTML=h; fb.hidden=false;
+  const ids=[...(q.hl||[])]; if(!ok&&q.long&&chosen!=null&&q.opts[chosen].hl)ids.push(...q.opts[chosen].hl);
+  setHL(ids);
+  $('pbarFill').style.width=((G.i+1)/G.set.count*100)+'%';
+  fb.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function showResult(){
+  const n=G.res.length; if(!n){show('start');return;}
+  const k=G.res.filter(r=>r.ok).length, s=G.set;
+  $('scoreNum').textContent=`${k} / ${n}`;
+  $('scoreMsg').innerHTML=R(k===n?'ぜんぶせいかい！すごいね！':k/n>=0.7?'よくがんばったね！':'がんばったね！まちがえたところを[見|み]なおすと、もっとわかるようになるよ。');
+  const infoTxt={1:'すくない',2:'ふつう',3:'おおい'}[s.info];
+  $('rset').innerHTML=R((G.cfg&&G.cfg.name?`「${PNAME[G.cfg.name]}」　`:'')+`[資料|しりょう]の[量|りょう]：${infoTxt}レベル${s.level}　[選択肢|せんたくし]${s.choices}つ`+(s.ansMode==='choice'?'　[数字|すうじ]もえらぶ':'')+(s.hint==='on'?'　ヒントあり':''));
+  $('rlist').innerHTML=G.res.map((r,i)=>`<li><span class="rk ${r.ok?'ok':'ng'}">${i+1}　${r.ok?'○':'もういちど'}</span><div><div class="rq">${R(r.q.text)}${r.hint?'<span class="rchip">ヒント</span>':''}</div>${r.ok?'':`<div class="ra">${R('こたえ')}：${R(r.q.ans)}</div>`}</div></li>`).join('');
+  show('result');
+}
+
+function init(){
+  ['start','settings','result'].forEach(id=>{const el=$(id);el.innerHTML=R(el.innerHTML);});
+  loadS(); syncSeg(); updNote();
+  document.addEventListener('click',ev=>{
+    const b=ev.target.closest('button'); if(!b||b.disabled)return;
+    unlockAudio();
+    const seg=b.closest('.seg');
+    if(seg){const k=seg.dataset.key;S[k]=NUMKEYS.includes(k)?+b.dataset.v:b.dataset.v;saveS();syncSeg();return;}
+    if(b.classList.contains('step')){const inp=$(b.dataset.t);inp.value=(parseInt(inp.value,10)||0)+(+b.dataset.d);const v=clampInput(inp);if(inp.id==='cnt'){S.count=v;saveS();}return;}
+    if(b.classList.contains('preset')){const p=b.dataset.p;startGame({...PRESETS[p],name:p});return;}
+    if(b.id==='openSet'){syncSeg();show('settings');return;}
+    if(b.id==='closeSet'){S.count=clampInput($('cnt'));saveS();show('start');return;}
+    if(b.id==='startBtn'){S.count=clampInput($('cnt'));saveS();startGame();return;}
+    if(b.id==='quitBtn'){showResult();return;}
+    if(b.id==='againBtn'){startGame(G.cfg);return;}
+    if(b.id==='homeBtn'){syncSeg();show('start');return;}
+    if(b.id==='nextBtn'){G.i++;nextQ();return;}
+    if(b.id==='hintBtn'){showHint();return;}
+    if(b.classList.contains('opt')&&G&&!G.answered){const i=+b.dataset.i;onAnswer(G.q.opts[i].ok,i);return;}
+    if(b.id==='goBtn'){
+      const q=G.q;
+      if(q.type==='num'){onAnswer(clampInput($('inA'))===q.val,null);}
+      else{const h=clampInput($('inH')),m=clampInput($('inM'));onAnswer(h*60+m===q.val&&m<60,null);}
+    }
+  });
+  document.addEventListener('change',ev=>{const t=ev.target;if(t.matches('.num input')){const v=clampInput(t);if(t.id==='cnt'){S.count=v;saveS();}}});
+  document.addEventListener('input',ev=>{const t=ev.target;if(t.matches('.num input'))t.value=String(t.value).replace(/[^0-9]/g,'').slice(0,3);});
+  document.addEventListener('focusin',ev=>{const t=ev.target;if(t.matches('.num input')&&t.value==='0')t.select();});
+  document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.matches('#ans input')){const g=$('goBtn');if(g&&!g.disabled)g.click();}});
+  document.addEventListener('dblclick',ev=>ev.preventDefault(),{passive:false});
+  document.addEventListener('gesturestart',ev=>ev.preventDefault());
+}
+if(typeof document!=='undefined'){
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+}
+</script>
+</body>
+</html>
